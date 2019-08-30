@@ -1,4 +1,8 @@
+import random
+
 import numpy as np
+import copy
+from sklearn.datasets import load_breast_cancer
 
 
 def step_derivative(y):
@@ -75,15 +79,21 @@ class NeuronLayer:
 
     def feed(self, inputs):
         layer_result = []
-        for i in range(0, self.layer_size):
-            layer_result.append(self.perceptrons[i].feed(inputs))
+        for perceptron in self.perceptrons:
+            layer_result.append(perceptron.feed(inputs))
         return layer_result
 
     def get_output(self):
         output = []
-        for i in range(0, self.layer_size):
-            output.append(self.perceptrons[i].output)
+        for perceptron in self.perceptrons:
+            output.append(perceptron.output)
         return output
+
+    def get_weights(self):
+        weights = []
+        for perceptron in self.perceptrons:
+            weights.append(perceptron.list_w)
+        return weights
 
 
 class NeuralNetwork:
@@ -112,9 +122,9 @@ class NeuralNetwork:
             inputs = self.layers[i].feed(inputs)
         return inputs
 
-    def train(self, inp):
-        output = self.feed(inp)
-        self.back_propagation(output)
+    def train(self, inp, out):
+        self.feed(inp)
+        self.back_propagation(out)
         self.update_weights(inp)
 
     def derivative(self, output):
@@ -133,11 +143,16 @@ class NeuralNetwork:
             delta.append(error[k] * self.derivative(neuron_output[k]))
         self.layers[-1].delta = delta
         for i in range(-1, -self.amount_layers, -1):
-            weights = self.layers[i].list_w
-            for weight in range(0, len(weights[0])):
+            layer_weights = self.layers[i].get_weights()
+            for perceptron_weights in layer_weights:
+                error = 0
+                for weight in perceptron_weights:
+                    error += weight * self.layers[i].perceptrons[neuron].delta
+
+            for weight in range(0, len(layer_weights[0])):
                 error = 0
                 for neuron in range(0, self.layers[i].layer_size):
-                    error += weights[neuron][weight] * self.layers[i].perceptrons[neuron].delta
+                    error += layer_weights[neuron][weight] * self.layers[i].perceptrons[neuron].delta
                 delta = error * self.derivative(self.layers[i - 1].perceptrons[weight].output)
                 self.layers[i - 1].perceptrons[weight].delta = delta
 
@@ -151,3 +166,81 @@ class NeuralNetwork:
             inputs = previous_layer
             previous_layer = []
         return inputs
+
+    def get_weights(self):
+        weights = []
+        for layer in self.layers:
+            weights.append(layer.get_weights())
+        return weights
+
+    def error(self, training_input, training_output, testing_input, testing_output):
+        original_weights = copy.deepcopy(self.get_weights())
+        delta = []
+        flag = True
+        first_epoch = self.epochs
+        n = len(training_output)
+        n_test = len(testing_output)
+        if self.output_size == 1:
+            for i in range(0, n):
+                training_output[i] = [training_output[i]]
+                testing_output[i] = [testing_output[i]]
+        errors = []
+        precision = []
+        for i in range(0, self.epochs):
+            for j in range(0, n):
+                self.train(training_input[j], training_output[j])
+            error = 0
+            precision = 0
+            for k in range(0, n_test):
+                if np.argmax(self.feed(testing_input[k])) == np.argmax(testing_output[k]):
+                    precision += 1
+                for h in range(0, self.output_size):
+                    error += abs(testing_output[k][h] - self.feed(testing_input[k])[h]) ** 2  # MSE
+            errors.append(error)
+            precision.append(precision / n_test)
+            if (precision / n_test) > 0.95 and flag:
+                flag = False
+                first_epoch = i
+        last_weights = copy.deepcopy(self.getWeights())
+        for i in range(0, len(original_weights)):
+            delta.append(np.subtract(last_weights[i], original_weights[i]))
+        return errors, precision, first_epoch, delta
+
+
+def normalize_breast_cancer(data, target):
+    for sample in range(0, len(data[:])):
+        data[:, sample] = data[:, sample] / np.max(data[:, sample])
+    list_data = data.tolist()
+    list_target = target.tolist()
+    return list_data, list_target
+
+
+def one_hot_encoding(samples, target):
+    identity_matrix = np.eye(samples, dtype=int).tolist()
+    for i in range(0, len(target)):
+        target[i] = identity_matrix[target[i]]
+    return target
+
+
+def kfold_cross_validation(data, target, k):
+    c = list(zip(data, target))
+
+
+    data, target = zip(*c)
+    for i in range(0,k):
+        data_partition = int(len(data) * 0.8)
+        target_partition = int(len(target) * 0.8)
+        training_data = data[0:data_partition]
+        training_target = target[0:target_partition]
+        test_data = data[data_partition + 1:len(data)]
+        test_target = target[target_partition + 1:len(target)]
+    return folds
+
+cancer = load_breast_cancer()
+data, target = normalize_breast_cancer(cancer.data, cancer.target)
+target = one_hot_encoding(len(cancer.data[:]), target)
+
+
+
+# 20% Test 80% Train
+
