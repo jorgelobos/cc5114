@@ -1,9 +1,11 @@
-import random
+import time
 
+from sklearn.model_selection import KFold
 import numpy as np
 import copy
 from sklearn.datasets import load_breast_cancer
-
+import matplotlib.pyplot as plt
+from matplotlib.collections import EventCollection
 
 def step_derivative(y):
     return 0
@@ -185,7 +187,7 @@ class NeuralNetwork:
                 training_output[i] = [training_output[i]]
                 testing_output[i] = [testing_output[i]]
         errors = []
-        precision = []
+        precisions = []
         for i in range(0, self.epochs):
             for j in range(0, n):
                 self.train(training_input[j], training_output[j])
@@ -197,14 +199,14 @@ class NeuralNetwork:
                 for h in range(0, self.output_size):
                     error += abs(testing_output[k][h] - self.feed(testing_input[k])[h]) ** 2  # MSE
             errors.append(error)
-            precision.append(precision / n_test)
+            precisions.append(precision / n_test)
             if (precision / n_test) > 0.95 and flag:
                 flag = False
                 first_epoch = i
-        last_weights = copy.deepcopy(self.getWeights())
+        last_weights = copy.deepcopy(self.get_weights())
         for i in range(0, len(original_weights)):
             delta.append(np.subtract(last_weights[i], original_weights[i]))
-        return errors, precision, first_epoch, delta
+        return errors, precisions, first_epoch, delta
 
 
 def normalize_breast_cancer(data, target):
@@ -222,25 +224,32 @@ def one_hot_encoding(samples, target):
     return target
 
 
-def kfold_cross_validation(data, target, k):
-    c = list(zip(data, target))
+def kfold_cross_validation(data, target):
+    kf = KFold(n_splits=5, shuffle=True)
+    fold_index = 1
+    for train_index, test_index in kf.split(data):
+        data_train, data_test = data[train_index], data[test_index]
+        target_train, target_test = target[train_index], target[test_index]
+        listw = np.random.uniform(-2.0, 2.0, size=(1, len(data_train))).tolist()
+        network = NeuralNetwork(amount_layers=5, list_perceptron_per_layer=[2, 4, 8, 4, 2],
+                                input_size=len(data_train), output_size=len(target_train),
+                                list_w=listw, bias=np.random.uniform(-2.0, 2-0))
+        start_time = time.time()
+        error, precision, epoch, weights = network.error(data_train, target_train, data_test, target_test)
+        end_time = time.time()
+        elapsed_time = end_time-start_time
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        ax.plot(error, range(0, network.epochs), color='tab:blue')
+        ax.plot(precision, range(0, network.epochs), color='tab:orange')
+        ax.set_title('fold num: ' + str(fold_index) + ', elapsed time: ' + str(elapsed_time))
+        plt.show()
+        fold_index = fold_index+1
 
-
-    data, target = zip(*c)
-    for i in range(0,k):
-        data_partition = int(len(data) * 0.8)
-        target_partition = int(len(target) * 0.8)
-        training_data = data[0:data_partition]
-        training_target = target[0:target_partition]
-        test_data = data[data_partition + 1:len(data)]
-        test_target = target[target_partition + 1:len(target)]
-    return folds
 
 cancer = load_breast_cancer()
 data, target = normalize_breast_cancer(cancer.data, cancer.target)
 target = one_hot_encoding(len(cancer.data[:]), target)
-
-
 
 # 20% Test 80% Train
 
