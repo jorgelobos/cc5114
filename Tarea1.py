@@ -1,11 +1,11 @@
 import time
-
+from operator import itemgetter
 from sklearn.model_selection import KFold
 import numpy as np
 import copy
 from sklearn.datasets import load_breast_cancer
 import matplotlib.pyplot as plt
-from matplotlib.collections import EventCollection
+
 
 def step_derivative(y):
     return 0
@@ -20,9 +20,9 @@ def tanh_derivative(x):
 
 
 class Perceptron:
-    def __init__(self, list_w, bias, learning_rate=0.1, epochs=100, activation_function='sigmoid'):
-        self.list_w = list_w
-        self.bias = bias
+    def __init__(self, previous_layer_size, learning_rate=0.1, epochs=100, activation_function='sigmoid'):
+        self.list_w = np.random.uniform(-2.0, 2.0, previous_layer_size)
+        self.bias = np.random.uniform(-2.0, 2.0)
         self.activation_function = activation_function
         self.learning_rate = learning_rate  # eta
         self.epochs = epochs
@@ -51,33 +51,28 @@ class Perceptron:
                 self.list_w += update * inp
                 self.bias += update
 
-    @property
     def step(self, y):
         return 0 if y < 0 else 1
 
-    @property
     def sigmoid(self, z):
         return 1 / (1 + np.exp(-z))
 
-    @property
     def tanh(self, x):
         return (np.exp(x) - np.exp(-x)) / (np.exp(x) + np.exp(-x))
 
 
 class NeuronLayer:
-    def __init__(self, layer_size, input_size, list_w, bias, learning_rate=0.1, epochs=100,
+    def __init__(self, layer_size, previous_layer_size, learning_rate=0.1, epochs=100,
                  activation_function='sigmoid'):
         self.layer_size = layer_size
-        self.input_size = input_size
-        self.list_w = list_w
-        self.bias = bias
+        self.previous_layer_size = previous_layer_size
         self.learning_rate = learning_rate
         self.epochs = epochs
         self.activation_function = activation_function
         self.delta = 0
         self.perceptrons = []
         for _ in range(0, self.layer_size):
-            self.perceptrons.append(Perceptron(list_w, bias, learning_rate, epochs, activation_function))
+            self.perceptrons.append(Perceptron(previous_layer_size, learning_rate, epochs, activation_function))
 
     def feed(self, inputs):
         layer_result = []
@@ -99,35 +94,30 @@ class NeuronLayer:
 
 
 class NeuralNetwork:
-    def __init__(self, amount_layers, list_perceptron_per_layer, input_size, output_size, list_w, bias,
-                 learning_rate=0.1, epochs=100, activation_function='sigmoid'):
-        self.amount_layers = amount_layers
+    def __init__(self, list_perceptron_per_layer, learning_rate=0.1, epochs=100, activation_function='sigmoid'):
         self.list_perceptron_per_layer = list_perceptron_per_layer
-        self.input_size = input_size
-        self.output_size = output_size
-        self.list_w = list_w
-        self.bias = bias
         self.learning_rate = learning_rate  # eta
         self.epochs = epochs
         self.activation_function = activation_function
         self.layers = []
-        first_layer = NeuronLayer(list_perceptron_per_layer[0], input_size, list_w,
-                                  bias, learning_rate, epochs, activation_function)
-        self.layers.append(first_layer)
-        for i in range(1, amount_layers):
-            layer = NeuronLayer(list_perceptron_per_layer[i], list_perceptron_per_layer[i - 1], list_w,
-                                bias, learning_rate, epochs, activation_function)
+        for i in range(1, len(list_perceptron_per_layer)):
+            layer = NeuronLayer(list_perceptron_per_layer[i], list_perceptron_per_layer[i - 1],
+                                learning_rate, epochs, activation_function)
             self.layers.append(layer)
 
     def feed(self, inputs):
-        for i in range(0, self.amount_layers):
+        for i in range(0, len(self.list_perceptron_per_layer)-1):
             inputs = self.layers[i].feed(inputs)
         return inputs
 
     def train(self, inp, out):
-        self.feed(inp)
+        real_out = self.feed(inp)
+        error = 0
+        for h in range(0, len(out)):
+            error += abs(out[h] - real_out[h]) ** 2  # MSE
         self.back_propagation(out)
         self.update_weights(inp)
+        return error
 
     def derivative(self, output):
         if self.activation_function == 'sigmoid':
@@ -143,27 +133,24 @@ class NeuralNetwork:
         delta = []
         for k in range(0, self.layers[-1].layer_size):
             delta.append(error[k] * self.derivative(neuron_output[k]))
-        self.layers[-1].delta = delta
-        for i in range(-1, -self.amount_layers, -1):
-            layer_weights = self.layers[i].get_weights()
-            for perceptron_weights in layer_weights:
+        for neuron in range(0, self.layers[-1].layer_size):
+            self.layers[-1].perceptrons[neuron].delta = delta[neuron]
+        for i in range(-1, -len(self.list_perceptron_per_layer)+1, -1):
+            layer_weights = self.layers[i].get_weights()  # Obtengo las listas de pesos de cada neurona de la capa
+            for weight in range(0, len(layer_weights[0])):  # Por cada peso....
                 error = 0
-                for weight in perceptron_weights:
-                    error += weight * self.layers[i].perceptrons[neuron].delta
-
-            for weight in range(0, len(layer_weights[0])):
-                error = 0
-                for neuron in range(0, self.layers[i].layer_size):
+                for neuron in range(0, self.layers[i].layer_size):  # En cada neurona
                     error += layer_weights[neuron][weight] * self.layers[i].perceptrons[neuron].delta
                 delta = error * self.derivative(self.layers[i - 1].perceptrons[weight].output)
                 self.layers[i - 1].perceptrons[weight].delta = delta
 
     def update_weights(self, inputs):
         previous_layer = []
-        for layer in range(0, self.amount_layers - 1):
+        for layer in range(0, len(self.layers)):
             for perceptron in self.layers[layer].perceptrons:
-                perceptron.list_w = perceptron.list_w + self.learning_rate * perceptron.delta * inputs
-                perceptron.bias = perceptron.bias + self.learning_rate * perceptron.delta
+                for w in range(0, len(perceptron.list_w)):
+                    perceptron.list_w[w] = perceptron.list_w[w] + perceptron.learning_rate * perceptron.delta * inputs[w]
+                perceptron.bias = perceptron.bias + perceptron.learning_rate * perceptron.delta
                 previous_layer.append(perceptron.feed(inputs))
             inputs = previous_layer
             previous_layer = []
@@ -182,23 +169,22 @@ class NeuralNetwork:
         first_epoch = self.epochs
         n = len(training_output)
         n_test = len(testing_output)
-        if self.output_size == 1:
+        if self.list_perceptron_per_layer[-1] == 1:
             for i in range(0, n):
                 training_output[i] = [training_output[i]]
                 testing_output[i] = [testing_output[i]]
         errors = []
         precisions = []
         for i in range(0, self.epochs):
+            errors_epoch = []
+            print('epoch num: ' + str(i))
             for j in range(0, n):
-                self.train(training_input[j], training_output[j])
-            error = 0
+                errors_epoch.append(self.train(training_input[j], training_output[j]))
+            errors.append(sum(errors_epoch)/n)
             precision = 0
             for k in range(0, n_test):
                 if np.argmax(self.feed(testing_input[k])) == np.argmax(testing_output[k]):
                     precision += 1
-                for h in range(0, self.output_size):
-                    error += abs(testing_output[k][h] - self.feed(testing_input[k])[h]) ** 2  # MSE
-            errors.append(error)
             precisions.append(precision / n_test)
             if (precision / n_test) > 0.95 and flag:
                 flag = False
@@ -210,7 +196,7 @@ class NeuralNetwork:
 
 
 def normalize_breast_cancer(data, target):
-    for sample in range(0, len(data[:])):
+    for sample in range(0, data.shape[1]):
         data[:, sample] = data[:, sample] / np.max(data[:, sample])
     list_data = data.tolist()
     list_target = target.tolist()
@@ -224,32 +210,33 @@ def one_hot_encoding(samples, target):
     return target
 
 
-def kfold_cross_validation(data, target):
+def kfold_cross_validation(data, target, epochs_amt=25):
     kf = KFold(n_splits=5, shuffle=True)
     fold_index = 1
     for train_index, test_index in kf.split(data):
-        data_train, data_test = data[train_index], data[test_index]
-        target_train, target_test = target[train_index], target[test_index]
-        listw = np.random.uniform(-2.0, 2.0, size=(1, len(data_train))).tolist()
-        network = NeuralNetwork(amount_layers=5, list_perceptron_per_layer=[2, 4, 8, 4, 2],
-                                input_size=len(data_train), output_size=len(target_train),
-                                list_w=listw, bias=np.random.uniform(-2.0, 2-0))
+        data_train = list(itemgetter(*train_index)(data))
+        data_test = list(itemgetter(*test_index)(data))
+        target_train = list(itemgetter(*train_index)(target))
+        target_test = list(itemgetter(*test_index)(target))
+        input_size = len(data_train[0])
+        output_size = len(target_train[0])
+        network = NeuralNetwork(list_perceptron_per_layer=[input_size, 2, 4, 8, 4, output_size], epochs=epochs_amt)
         start_time = time.time()
         error, precision, epoch, weights = network.error(data_train, target_train, data_test, target_test)
         end_time = time.time()
-        elapsed_time = end_time-start_time
+        elapsed_time = end_time - start_time
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
-        ax.plot(error, range(0, network.epochs), color='tab:blue')
-        ax.plot(precision, range(0, network.epochs), color='tab:orange')
-        ax.set_title('fold num: ' + str(fold_index) + ', elapsed time: ' + str(elapsed_time))
+        ax.plot(range(0, network.epochs), error, color='tab:blue', label='Error')
+        ax.plot(range(0, network.epochs), precision, color='tab:orange', label='Precision')
+        ax.legend()
+        ax.set_title('fold num: ' + str(fold_index) + ', epochs: ' + str(epochs_amt) +', elapsed time: ' + str(elapsed_time))
         plt.show()
-        fold_index = fold_index+1
+        fold_index = fold_index + 1
 
 
 cancer = load_breast_cancer()
 data, target = normalize_breast_cancer(cancer.data, cancer.target)
-target = one_hot_encoding(len(cancer.data[:]), target)
-
+target = one_hot_encoding(len(cancer.target_names), target)
+kfold_cross_validation(data, target, epochs_amt=100)
 # 20% Test 80% Train
-
