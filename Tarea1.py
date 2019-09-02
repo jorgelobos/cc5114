@@ -3,7 +3,7 @@ from operator import itemgetter
 from sklearn.model_selection import KFold
 import numpy as np
 from sklearn.metrics import confusion_matrix
-from sklearn.datasets import load_breast_cancer, load_digits
+from sklearn.datasets import load_breast_cancer, load_iris
 import matplotlib.pyplot as plt
 
 
@@ -254,13 +254,15 @@ def kfold_cross_validation(data, target, classes, epochs_amt=25):
         fold_index = fold_index + 1
 
 
+iris = load_iris()
+data, target = normalize_dataset(iris.data, iris.target)
+target = one_hot_encoding(len(iris.target_names), target)
+kfold_cross_validation(data, target, iris.target_names, epochs_amt=200)
+
 cancer = load_breast_cancer()
 data, target = normalize_dataset(cancer.data, cancer.target)
 target = one_hot_encoding(len(cancer.target_names), target)
 kfold_cross_validation(data, target, cancer.target_names, epochs_amt=100)
 
-digits = load_digits()
-data, target = normalize_dataset(digits.data, digits.target)
-target = one_hot_encoding(len(digits.target_names), target)
-kfold_cross_validation(data, target, digits.target_names, epochs_amt=100)
+
 # 20% Test 80% Train
