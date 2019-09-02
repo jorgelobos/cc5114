@@ -254,6 +254,7 @@ def kfold_cross_validation(data, target, classes, epochs_amt=25):
         fold_index = fold_index + 1
 
 
+start = time.time()
 iris = load_iris()
 data, target = normalize_dataset(iris.data, iris.target)
 target = one_hot_encoding(len(iris.target_names), target)
@@ -263,6 +264,7 @@ cancer = load_breast_cancer()
 data, target = normalize_dataset(cancer.data, cancer.target)
 target = one_hot_encoding(len(cancer.target_names), target)
 kfold_cross_validation(data, target, cancer.target_names, epochs_amt=100)
-
+end = time.time()
+print('Tarea corrió en ' + str(end-start) + ' segundos')
 
 # 20% Test 80% Train
