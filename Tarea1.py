@@ -2,8 +2,8 @@ import time
 from operator import itemgetter
 from sklearn.model_selection import KFold
 import numpy as np
-import copy
-from sklearn.datasets import load_breast_cancer
+from sklearn.metrics import confusion_matrix
+from sklearn.datasets import load_breast_cancer, load_digits
 import matplotlib.pyplot as plt
 
 
@@ -113,11 +113,14 @@ class NeuralNetwork:
     def train(self, inp, out):
         real_out = self.feed(inp)
         error = 0
+        precision = 0
         for h in range(0, len(out)):
             error += abs(out[h] - real_out[h]) ** 2  # MSE
+        if np.argmax(real_out) == np.argmax(out):
+            precision = 1
         self.back_propagation(out)
         self.update_weights(inp)
-        return error
+        return error, precision
 
     def derivative(self, output):
         if self.activation_function == 'sigmoid':
@@ -163,10 +166,6 @@ class NeuralNetwork:
         return weights
 
     def error(self, training_input, training_output, testing_input, testing_output):
-        original_weights = copy.deepcopy(self.get_weights())
-        delta = []
-        flag = True
-        first_epoch = self.epochs
         n = len(training_output)
         n_test = len(testing_output)
         if self.list_perceptron_per_layer[-1] == 1:
@@ -177,25 +176,25 @@ class NeuralNetwork:
         precisions = []
         for i in range(0, self.epochs):
             errors_epoch = []
+            precision_epoch = []
             print('epoch num: ' + str(i))
             for j in range(0, n):
-                errors_epoch.append(self.train(training_input[j], training_output[j]))
+                error_train, precision_train = self.train(training_input[j], training_output[j])
+                errors_epoch.append(error_train)
+                precision_epoch.append(precision_train)
             errors.append(sum(errors_epoch)/n)
-            precision = 0
-            for k in range(0, n_test):
-                if np.argmax(self.feed(testing_input[k])) == np.argmax(testing_output[k]):
-                    precision += 1
-            precisions.append(precision / n_test)
-            if (precision / n_test) > 0.95 and flag:
-                flag = False
-                first_epoch = i
-        last_weights = copy.deepcopy(self.get_weights())
-        for i in range(0, len(original_weights)):
-            delta.append(np.subtract(last_weights[i], original_weights[i]))
-        return errors, precisions, first_epoch, delta
+            precisions.append(sum(precision_epoch)/n)
+        pred_outs = []
+        real_outs = []
+        i = 0
+        for test in testing_input:
+            pred_outs.append(np.argmax(testing_output[i]))
+            i += 1
+            real_outs.append(np.argmax(self.feed(test)))
+        return errors, precisions, pred_outs, real_outs
 
 
-def normalize_breast_cancer(data, target):
+def normalize_dataset(data, target):
     for sample in range(0, data.shape[1]):
         data[:, sample] = data[:, sample] / np.max(data[:, sample])
     list_data = data.tolist()
@@ -210,7 +209,7 @@ def one_hot_encoding(samples, target):
     return target
 
 
-def kfold_cross_validation(data, target, epochs_amt=25):
+def kfold_cross_validation(data, target, classes, epochs_amt=25):
     kf = KFold(n_splits=5, shuffle=True)
     fold_index = 1
     for train_index, test_index in kf.split(data):
@@ -222,7 +221,7 @@ def kfold_cross_validation(data, target, epochs_amt=25):
         output_size = len(target_train[0])
         network = NeuralNetwork(list_perceptron_per_layer=[input_size, 2, 4, 8, 4, output_size], epochs=epochs_amt)
         start_time = time.time()
-        error, precision, epoch, weights = network.error(data_train, target_train, data_test, target_test)
+        error, precision, pred_outs, real_outs = network.error(data_train, target_train, data_test, target_test)
         end_time = time.time()
         elapsed_time = end_time - start_time
         fig = plt.figure()
@@ -232,11 +231,36 @@ def kfold_cross_validation(data, target, epochs_amt=25):
         ax.legend()
         ax.set_title('fold num: ' + str(fold_index) + ', epochs: ' + str(epochs_amt) +', elapsed time: ' + str(elapsed_time))
         plt.show()
+        cm = confusion_matrix(real_outs, pred_outs)
+        fig, ax = plt.subplots()
+        im = ax.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+        ax.figure.colorbar(im, ax=ax)
+        ax.set(xticks=np.arange(cm.shape[1]),
+               yticks=np.arange(cm.shape[0]),
+               xticklabels=classes, yticklabels=classes,
+               title='Confusion Matrix',
+               ylabel='True label',
+               xlabel='Predicted label')
+        # Loop over data dimensions and create text annotations.
+        fmt = 'd'
+        thresh = cm.max() / 2.
+        for i in range(cm.shape[0]):
+            for j in range(cm.shape[1]):
+                ax.text(j, i, format(cm[i, j], fmt),
+                        ha="center", va="center",
+                        color="white" if cm[i, j] > thresh else "black")
+        fig.tight_layout()
+        plt.show()
         fold_index = fold_index + 1
 
 
 cancer = load_breast_cancer()
-data, target = normalize_breast_cancer(cancer.data, cancer.target)
+data, target = normalize_dataset(cancer.data, cancer.target)
 target = one_hot_encoding(len(cancer.target_names), target)
-kfold_cross_validation(data, target, epochs_amt=100)
+kfold_cross_validation(data, target, cancer.target_names, epochs_amt=100)
+
+digits = load_digits()
+data, target = normalize_dataset(digits.data, digits.target)
+target = one_hot_encoding(len(digits.target_names), target)
+kfold_cross_validation(data, target, digits.target_names, epochs_amt=100)
 # 20% Test 80% Train
