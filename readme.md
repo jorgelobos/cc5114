@@ -94,10 +94,10 @@ Los ejercicios 4 y 5 producen los mismos gráficos para los problemas de encontr
 
 Una aplicación real de los algoritmos genéticos es encontrar soluciones aproximadas a problemas en que encontrar el óptimo de manera segura sea muy largo o dificil (NP-hard). Un ejemplo clásico sería problemas basado en el vendedor viajero, como enrutamiento de tráfico. En el campo de la robótica, podría usarse para crear robots de aprendizaje que imiten de mejor manera tareas no automatizables.
 
-Iris Confusion Matrix: 
+Fitness por generación en iteración con indice mutación 1 y población 1000, caso ejercicio4: 
 ![alt text](https://raw.githubusercontent.com/jorgelobos/cc5114/feature/Tarea2/fitness.png "Fitness por generación en iteración con indice mutación 1 y población 1000, caso ejercicio4")
 
-Iris Error: 
+Heatmap de generación de última subida, indiceMutacion vs cantPoblacion, caso ejercicio4: 
 ![alt text](https://raw.githubusercontent.com/jorgelobos/cc5114/feature/Tarea2/heatmap.png "Heatmap de generación de última subida, indiceMutacion vs cantPoblacion, caso ejercicio4")
 
 
